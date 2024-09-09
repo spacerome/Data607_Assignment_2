@@ -1,0 +1,10 @@
+name: Publish Document
+title:
+username:
+account: rpubs
+server: rpubs.com
+hostUrl: rpubs.com
+appId: https://api.rpubs.com/api/v1/document/1217872/5ae2637924fd425882efb4610fe811bf
+bundleId: https://api.rpubs.com/api/v1/document/1217872/5ae2637924fd425882efb4610fe811bf
+url: http://rpubs.com/spacerome/1217872
+version: 1

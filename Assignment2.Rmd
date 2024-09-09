@@ -1,0 +1,316 @@
+---
+title: "Data 607 - SQL and R"
+author: "Anthony Josue Roman"
+date: "2024-09-08"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r include=FALSE}
+require(readr)
+require(dplyr)
+require(randomNames)
+require(DBI)
+require(dbplyr)
+require(RMySQL)
+require(tidyr)
+require(tidyverse)
+require(ggplot2)
+```
+
+The following libraries listed will be utilized:
+
+```{r echo=TRUE}
+library(readr)
+library(dplyr)
+library(randomNames)
+library(DBI)
+library(dbplyr)
+library(RMySQL)
+library(tidyr)
+library(tidyverse)
+library(ggplot2)
+```
+
+## General Overview
+
+This assignment will utilize SQL and R. The files will be accessible from my github page which will be [here](https://github.com/spacerome/Data607_Assignment_2).
+
+### Generating Movie List
+
+Utilizing the following script will generate `movies.sql`.
+
+```{r eval=FALSE}
+
+movie_ids <- 1:20
+movie_names <- c(
+  "The Shawshank Redemption", "The Godfather", "The Dark Knight", 
+  "Pulp Fiction", "Schindler's List", "Forrest Gump", 
+  "Inception", "Fight Club", "The Matrix", 
+  "Goodfellas", "The Empire Strikes Back", "Interstellar", 
+  "Gladiator", "The Lord of the Rings: The Return of the King", 
+  "Back to the Future", "Saving Private Ryan", 
+  "The Silence of the Lambs", "Se7en", "The Usual Suspects", 
+  "Jurassic Park"
+)
+
+movie_data <- data.frame(
+  movieID = movie_ids,
+  movieName = movie_names
+)
+
+sql_file_path <- "movies.sql"
+conn <- file(sql_file_path, "w")
+
+create_table_statement <- "
+CREATE TABLE Movies (
+  movieID INT PRIMARY KEY,
+  movieName VARCHAR(255)
+);
+"
+writeLines(create_table_statement, conn)
+
+for (i in 1:nrow(movie_data)) {
+  movie_name <- gsub("'", "''", movie_data$movieName[i])
+  
+  insert_query <- paste0(
+    "INSERT INTO Movies (movieID, movieName) VALUES (",
+    movie_data$movieID[i], ", '", movie_name, "');"
+  )
+  
+  writeLines(insert_query, conn)
+}
+
+close(conn)
+
+```
+
+### Generating Names
+
+The following code snip will generate `names.sql`.
+
+```{r eval=FALSE}
+
+user_ids <- 1:20
+user_names <- c(
+  "Alice", "Bob", "Charlie", "David", "Eve", 
+  "Frank", "Grace", "Hannah", "Ivy", "Jack", 
+  "Karen", "Leo", "Mona", "Nathan", "Olivia", 
+  "Paul", "Quincy", "Rachel", "Sam", "Tina"
+)
+
+user_data <- data.frame(
+  userID = user_ids,
+  userName = user_names
+)
+
+sql_file_path <- "names.sql"
+conn <- file(sql_file_path, "w")
+
+create_table_statement <- "
+CREATE TABLE Users (
+  userID INT PRIMARY KEY,
+  userName VARCHAR(255)
+);
+"
+writeLines(create_table_statement, conn)
+
+for (i in 1:nrow(user_data)) {
+  user_name <- gsub("'", "''", user_data$userName[i])
+  
+  insert_query <- paste0(
+    "INSERT INTO Users (userID, userName) VALUES (",
+    user_data$userID[i], ", '", user_name, "');"
+  )
+  
+  writeLines(insert_query, conn)
+}
+
+close(conn)
+
+```
+
+### Gathering Ratings
+
+The following code snip will generate `ratings.sql``.
+
+```{r eval=FALSE}
+
+user_ids <- 1:20
+movie_ids <- 1:20
+set.seed(123)
+ratings <- sample(1:5, 400, replace = TRUE)
+
+rating_data <- expand.grid(userID = user_ids, movieID = movie_ids)
+rating_data$rating <- ratings
+
+sql_file_path <- "ratings.sql"
+conn <- file(sql_file_path, "w")
+
+create_table_statement <- "
+CREATE TABLE Ratings (
+  userID INT,
+  movieID INT,
+  rating INT,
+  PRIMARY KEY (userID, movieID)
+);
+"
+writeLines(create_table_statement, conn)
+
+for (i in 1:nrow(rating_data)) {
+  insert_query <- paste0(
+    "INSERT INTO Ratings (userID, movieID, rating) VALUES (",
+    rating_data$userID[i], ", ", 
+    rating_data$movieID[i], ", ",
+    rating_data$rating[i], ");"
+  )
+  
+  writeLines(insert_query, conn)
+}
+
+close(conn)
+
+```
+
+### Combining the Three SQL files in R
+
+Next we will combine the three sql files in R to make it into one SQL file. If the table exists, then the table will be dropped.
+
+```{r eval=FALSE}
+
+names_sql <- readLines("names.sql")
+movies_sql <- readLines("movies.sql")
+ratings_sql <- readLines("ratings.sql")
+
+drop_tables <- c(
+  "DROP TABLE IF EXISTS Users;",
+  "DROP TABLE IF EXISTS Movies;",
+  "DROP TABLE IF EXISTS Ratings;"
+)
+
+combined_sql <- c(
+  drop_tables,
+  "", 
+  names_sql,
+  "",  
+  movies_sql,
+  "",  
+  ratings_sql
+)
+
+combined_sql_file <- "movie_ratings.sql"
+writeLines(combined_sql, combined_sql_file)
+
+cat("Combined SQL file saved at:", combined_sql_file)
+
+```
+
+### Accessing the MySQL Database
+
+We will not access the Database after importing `movie_ratings.sql` in MySQL Workbench under the `movie_ratings` schema, and then preview the tables.
+
+*A config file was utilized instead of entering the password on the code chunk*
+
+```{r include=FALSE}
+
+db_password <- config::get("db_password")
+
+sdb <- dbConnect(RMySQL::MySQL(),
+                 dbname = "movie_ratings",
+                 host = "localhost",     
+                 port = 3306,            
+                 user = "root",
+                 password = db_password)
+
+dbListTables(sdb)
+
+```
+
+#### Accessing Tables via MySQL in R
+
+After accessing the database, creating a variable for each table to view it.
+
+```{r echo=TRUE}
+reviewers <- dbSendQuery(sdb, "SELECT * FROM users;")
+head(dbFetch(reviewers))
+
+```
+
+```{r echo=TRUE}
+
+movie <- dbSendQuery(sdb, "SELECT * FROM movies;")
+head(dbFetch(movie))
+
+```
+
+```{r echo=TRUE}
+
+mratings <- dbSendQuery(sdb, "SELECT * FROM ratings;")
+head(dbFetch(mratings))
+
+```
+
+After verifying the variables work, then combining the data is necessary to generate `movieRatings`
+
+```{r echo=TRUE}
+
+reviewers <- dbFetch(dbSendQuery(sdb, "SELECT * FROM users;"))
+movies <- dbFetch(dbSendQuery(sdb, "SELECT * FROM movies;"))
+ratings <- dbFetch(dbSendQuery(sdb, "SELECT * FROM ratings;"))
+
+ratings_reviewers <- left_join(ratings, reviewers, by = "userID")
+combined_data <- left_join(ratings_reviewers, movies, by = "movieID")
+
+head(combined_data)
+
+```
+
+#### Analyzing the Data
+
+After combining the data and taking the average, Inception and The Empire Strikes back are significantly equal in rating of 3.30, whereas The Matrix had the lowest rating of 2.25. After checking the graph, the same results are shown as well.
+
+```{r echo=TRUE}
+adata <- combined_data %>%
+  filter(!is.na(rating)) %>%
+  group_by(movieName) %>%
+    summarise(arating = mean(as.numeric(rating))) %>%
+  arrange(desc(arating))
+  head(adata)
+```
+
+```{r echo=TRUE}
+adata <- combined_data %>%
+  filter(!is.na(rating)) %>%
+  group_by(movieName) %>%
+    summarise(arating = mean(as.numeric(rating))) %>%
+  arrange(arating)
+  head(adata)
+```
+
+```{r echo=TRUE}
+
+adata %>%
+  ggplot +
+  geom_col(aes(arating,movieName))
+
+```
+
+Another approach would be to check which movie had the most rating counts rather than taking the average of the ratings for each movie:
+
+```{r echo=TRUE}
+
+cdata <- combined_data
+
+cdata %>% group_by(movieName, rating) %>% summarise(count = n()) %>%
+  arrange(desc(count))
+
+```
+
+From the findings here The Matrix has about 8 ratings of 1, whereas The Empire Strikes Back has a rating of 5 about 9 times.
+
+## Conclusions
+
+Upon utilizing this data that was generated, the main issue would be more samples need to be taken such as 50 or more on the same number of movies to get a better measurement. Another useful analysis of the ratings would be to gather their reasoning for why they rated the movie such a high rating or poor rating. This will help us gather some keywords on why the movie has received such a rating. There were some movies that were tied, so having a "tie-breaker" may be possible as well as removing any bias from the ratings if there were any. Star Wars: The Empire Strikes back having a significantly high rating means that the movie was a success during it's time.
